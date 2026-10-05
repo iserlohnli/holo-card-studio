@@ -208,7 +208,23 @@ bpy.ops.object.camera_add(location=(0,-20,0)); cam=bpy.context.object; cam.name=
 for name,loc,energy,size,color in [('柔光主灯',(-3,-8,4),2100,9,(1,.90,.72)),('正面均匀补光',(3,-7,-2),1650,8,(.72,.85,1)),('顶部金光',(0,-4,7),800,5,(1,.70,.32))]:
     bpy.ops.object.light_add(type='AREA',location=loc); o=bpy.context.object; o.name=name; o.data.energy=energy; o.data.shape='DISK'; o.data.size=size; o.data.color=color; aim(o,(0,0,0))
 # Compositor glow.
-scene.use_nodes=True; ct=scene.node_tree; ct.nodes.clear(); rl=node(ct,'CompositorNodeRLayers','渲染层',0,0); gl=node(ct,'CompositorNodeGlare','辉光 · 高质量',250,0); gl.glare_type='FOG_GLOW'; gl.quality='HIGH'; gl.threshold=1.5; gl.size=8; co=node(ct,'CompositorNodeComposite','最终图像',510,0); link(ct,rl,'Image',gl,'Image'); link(ct,gl,'Image',co,'Image')
+if bpy.app.version >= (5, 0, 0):
+    ct=bpy.data.node_groups.new('卡牌合成','CompositorNodeTree')
+    scene.compositing_node_group=ct
+    ct.interface.new_socket(name='Image',in_out='OUTPUT',socket_type='NodeSocketColor')
+    rl=node(ct,'CompositorNodeRLayers','渲染层',0,0)
+    gl=node(ct,'CompositorNodeGlare','辉光 · 高质量',250,0)
+    gl.inputs['Type'].default_value='Fog Glow'
+    gl.inputs['Quality'].default_value='High'
+    gl.inputs['Threshold'].default_value=1.5
+    co=node(ct,'NodeGroupOutput','最终图像',510,0)
+else:
+    scene.use_nodes=True; ct=scene.node_tree; ct.nodes.clear()
+    rl=node(ct,'CompositorNodeRLayers','渲染层',0,0)
+    gl=node(ct,'CompositorNodeGlare','辉光 · 高质量',250,0)
+    gl.glare_type='FOG_GLOW'; gl.quality='HIGH'; gl.threshold=1.5; gl.size=8
+    co=node(ct,'CompositorNodeComposite','最终图像',510,0)
+link(ct,rl,'Image',gl,'Image'); link(ct,gl,'Image',co,'Image')
 # Portable Chinese interface and ready-to-open camera view.
 try:
     bpy.context.preferences.view.language='zh_HANS'
@@ -218,7 +234,9 @@ bpy.context.preferences.view.use_translate_interface=True
 bpy.context.preferences.view.use_translate_tooltips=True
 bpy.context.preferences.view.use_translate_new_dataname=False
 bpy.context.preferences.view.show_splash=False
-bpy.ops.wm.save_userpref()
+# Save preferences only into an explicitly isolated run configuration.
+if os.environ.get('BLENDER_USER_CONFIG'):
+    bpy.ops.wm.save_userpref()
 scene.frame_set(25)
 bpy.ops.object.select_all(action='DESELECT'); card.select_set(True); bpy.context.view_layer.objects.active=card
 for screen in bpy.data.screens:
@@ -229,7 +247,7 @@ for screen in bpy.data.screens:
             area.spaces.active.overlay.show_overlays=False
 for im in images.values(): im.pack()
 scene['制作说明']='日式浮世绘 · 角色 · 雷之呼吸 壹之型 霹雳一闪。按空格播放转动。渲染有高质量辉光。'
-scene['素材来源']='内置 image_gen 生成角色/背景/线描；文字透明 PNG 使用精确字体排版。'
+scene['素材来源']=CFG.get('provenance','See the output project run record for actual asset provenance.')
 scene.render.filepath=str(R/'renders'/'hero.png')
 
 # Fixed typography safe region, distinct from parallax controls.
